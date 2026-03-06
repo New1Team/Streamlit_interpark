@@ -92,7 +92,7 @@ st.divider()
 # 5) 전체 vs 장르 선택에 따른 메인 차트
 # -----------------------------
 if genre_select == "전체":
-    st.subheader("장르별 평균 예매율 (텍스트 + 비교)")
+    st.subheader("장르Streamlit_interpark/pages/4_interpark statistic.py별 평균 예매율 (텍스트 + 비교)")
 
     avg_booking = df_all.groupby("genre")["bookingPercent"].mean().sort_values(ascending=False)
     for g, v in avg_booking.items():
