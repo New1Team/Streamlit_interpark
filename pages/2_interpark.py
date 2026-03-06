@@ -42,7 +42,7 @@ def getData(items):
       json_data = json.loads(script_tag.string)
       st.json(json_data, expanded=False)
       st.html("<hr/>")
-      st.text(f"{option} 목록 출력")
+      st.text(f"{option[st.session_state.link_index]} 목록 출력")
       tickets = json_data.get('props', {}).get('pageProps', {}).get('fallback', {}).get(musical_key, [])
       st.json(tickets)
       json_string = json.dumps(tickets, ensure_ascii=False, indent=2)
