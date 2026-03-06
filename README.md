@@ -6,3 +6,5 @@
 3. DB 저장
 4. front 제작
 5. fastApi 연결
+
+
