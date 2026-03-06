@@ -51,12 +51,11 @@ def loadDf():
         return dfAll
 
     # -----------------------------
-    # 2) 타입 정리 (DB가 VARCHAR여도 안전하게)
+    # 2) 타입 정리
     # -----------------------------
     dfAll["playStartDate"] = pd.to_datetime(dfAll["playStartDate"], errors="coerce")
     dfAll["playEndDate"] = pd.to_datetime(dfAll["playEndDate"], errors="coerce")
 
-    # bookingPercent가 "72%" 형태면 숫자로
     dfAll["bookingPercent"] = (
         dfAll["bookingPercent"]
         .astype(str)
@@ -64,59 +63,67 @@ def loadDf():
     )
     dfAll["bookingPercent"] = pd.to_numeric(dfAll["bookingPercent"], errors="coerce")
 
-    rate_cols = ["age10Rate","age20Rate","age30Rate","age40Rate","age50Rate","maleRate","femaleRate"]
+    rate_cols = ["age10Rate", "age20Rate", "age30Rate", "age40Rate", "age50Rate", "maleRate", "femaleRate"]
     for c in rate_cols:
         dfAll[c] = pd.to_numeric(dfAll[c], errors="coerce")
 
-    # 날짜/숫자 핵심 컬럼 결측치 제거(차트 안정성)
     dfAll = dfAll.dropna(subset=["genre", "title", "playEndDate", "bookingPercent"])
 
     today = pd.Timestamp(datetime.today())
     dfAll["remainDays"] = (dfAll["playEndDate"] - today).dt.days
-   
+
     return dfAll
 
 # -----------------------------
-# 3) 장르 선택
+# 3) 장르 필터
 # -----------------------------
-def genreFliter(dfAll: pd.DataFrame, genre: str)
+def genreFilter(dfAll: pd.DataFrame, genre: str):
     df = dfAll.copy()
     if genre != "전체":
-        df =df[df["genre_"] == genre].copy()
+        df = df[df["genre"] == genre].copy()
     return df
 
 def cleanCode(df: pd.DataFrame):
     out = df.copy()
+
     if "playStartDate" in out.columns:
         out["playStartDate"] = out["playStartDate"].astype(str)
-    
+
     if "playEndDate" in out.columns:
         out["playEndDate"] = out["playEndDate"].astype(str)
-        
+
     return out.to_dict(orient="records")
 
 @app.get("/statistic/genres")
 def genres():
-    dfAll = loadDf
-    if len(dfAll) ==0:
+    dfAll = loadDf()
+    if len(dfAll) == 0:
         return {"genres": ["전체"]}
+
     genreList = ["전체"] + sorted(dfAll["genre"].unique().tolist())
-    return {"genres":genreList }
+    return {"genres": genreList}
 
 @app.get("/statistic/kpi")
 def kpi(genre: str = Query("전체")):
-    dfAll = loadDf
-    if genre != "전체":
-        df = dfAll[dfAll["genre"] == genre]
-    else:
-        df = dfAll
+    dfAll = loadDf()
+
+    if len(dfAll) == 0:
+        return {
+            "count": 0,
+            "avg": 0.0,
+            "deadlineCount": 0
+        }
+
+    df = genreFilter(dfAll, genre)
+
     today = pd.Timestamp(datetime.today())
-    deadlin = df[
+    deadline = df[
         (df["playEndDate"] >= today) &
-        (df["playEndDate"] <= today + pd.Timedelta(day=7))
+        (df["playEndDate"] <= today + pd.Timedelta(days=7))
     ]
+
     return {
-        "count" : len(df),
-        "avg": round(df["bookingPercent"].mean(), 1),
-        "deadlinCount": len(deadlin)
+        "count": len(df),
+        "avg": round(df["bookingPercent"].mean(), 1) if len(df) else 0.0,
+        "deadlineCount": len(deadline)
     }
