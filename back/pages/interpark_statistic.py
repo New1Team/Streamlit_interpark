@@ -1,34 +1,14 @@
-from fastapi import FastAPI, Query
+from fastapi import APIRouter, Query
 import pandas as pd
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from Streamlit_interpark.backend.pages.db import findAll
+from db import findAll
 from bs4 import BeautifulSoup as bs
 from requests import get
 import json
 
-app = FastAPI(title="Interpark Analytics API")
+router = APIRouter()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/")
-def root():
-    return {"status": True}
-
-# -----------------------------
-# 1) DB에서 JOIN 데이터 로드
-# -----------------------------
 sql = """
     SELECT
         t.id,
@@ -78,27 +58,13 @@ def loadDf():
 
     return dfAll
 
-# -----------------------------
-# 2) 장르 필터
-# -----------------------------
 def genreFilter(dfAll: pd.DataFrame, genre: str):
     df = dfAll.copy()
     if genre != "전체":
         df = df[df["genre"] == genre].copy()
     return df
 
-def cleanCode(df: pd.DataFrame):
-    out = df.copy()
-
-    if "playStartDate" in out.columns:
-        out["playStartDate"] = out["playStartDate"].astype(str)
-
-    if "playEndDate" in out.columns:
-        out["playEndDate"] = out["playEndDate"].astype(str)
-
-    return out.to_dict(orient="records")
-
-@app.get("/statistic/genres")
+@router.get("/statistic/genres")
 def genres():
     dfAll = loadDf()
     if len(dfAll) == 0:
@@ -107,7 +73,7 @@ def genres():
     genreList = ["전체"] + sorted(dfAll["genre"].unique().tolist())
     return {"genres": genreList}
 
-@app.get("/statistic/kpi")
+@router.get("/statistic/kpi")
 def kpi(genre: str = Query("전체")):
     dfAll = loadDf()
 
@@ -132,9 +98,6 @@ def kpi(genre: str = Query("전체")):
         "deadlineCount": len(deadline)
     }
 
-# -----------------------------
-# 3) 실시간 통계 API 호출
-# -----------------------------
 def get_statistic(id: str, placeCode: str):
     url = f"https://tickets.interpark.com/contents/api/statistics/booking/{id}?placeCode={placeCode}"
     res = get(url)
@@ -143,10 +106,7 @@ def get_statistic(id: str, placeCode: str):
         return json.loads(res.text).get("ageGender", {})
     return {}
 
-# -----------------------------
-# 4) 실시간 top10 조회
-# -----------------------------
-@app.get("/statistic/realtime-top10")
+@router.get("/statistic/realtime-top10")
 def realtime_top10(genre: str = Query(...)):
     key = f'@"/ranking","?period=D&page=1&pageSize=50&rankingTypes={genre}",'
     url = f"https://tickets.interpark.com/contents/ranking?genre={genre}"

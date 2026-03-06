@@ -60,7 +60,7 @@ const Sample = () => {
 
   const fetchRealtimeTop10 = async (genreValue) => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/statistic/realtime-top10', {
+      const res = await axios.get('http://192.168.0.105:8000/statistic/realtime-top10', {
         params: { genre: genreValue },
       });
 

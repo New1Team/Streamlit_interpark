@@ -7,7 +7,7 @@ import Sample from "@/pages/Sample.jsx";
 const App = () => {
   const paths = [
    
-    {path: "/sample", element: <Sample />},
+    {path: "/", element: <Sample />},
    ]
   return (
     <>
