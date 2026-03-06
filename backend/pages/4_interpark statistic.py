@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from datetime import datetime
-from db import findAll
+from Streamlit_interpark.backend.pages.db import findAll
 
 st.set_page_config(page_title="공연 분석", page_icon="💗", layout="wide")
 st.title(" 인터파크 공연 분석 대시보드")

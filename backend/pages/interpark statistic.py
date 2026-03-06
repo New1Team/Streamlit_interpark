@@ -2,7 +2,10 @@ from fastapi import FastAPI, Query
 import pandas as pd
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from db import findAll
+from Streamlit_interpark.backend.pages.db import findAll
+from bs4 import BeautifulSoup as bs
+from requests import get
+import json
 
 app = FastAPI(title="Interpark Analytics API")
 
@@ -18,6 +21,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def root():
+    return {"status": True}
 
 # -----------------------------
 # 1) DB에서 JOIN 데이터 로드
@@ -50,9 +57,6 @@ def loadDf():
     if len(dfAll) == 0:
         return dfAll
 
-    # -----------------------------
-    # 2) 타입 정리
-    # -----------------------------
     dfAll["playStartDate"] = pd.to_datetime(dfAll["playStartDate"], errors="coerce")
     dfAll["playEndDate"] = pd.to_datetime(dfAll["playEndDate"], errors="coerce")
 
@@ -75,7 +79,7 @@ def loadDf():
     return dfAll
 
 # -----------------------------
-# 3) 장르 필터
+# 2) 장르 필터
 # -----------------------------
 def genreFilter(dfAll: pd.DataFrame, genre: str):
     df = dfAll.copy()
@@ -126,4 +130,78 @@ def kpi(genre: str = Query("전체")):
         "count": len(df),
         "avg": round(df["bookingPercent"].mean(), 1) if len(df) else 0.0,
         "deadlineCount": len(deadline)
+    }
+
+# -----------------------------
+# 3) 실시간 통계 API 호출
+# -----------------------------
+def get_statistic(id: str, placeCode: str):
+    url = f"https://tickets.interpark.com/contents/api/statistics/booking/{id}?placeCode={placeCode}"
+    res = get(url)
+
+    if res.status_code == 200:
+        return json.loads(res.text).get("ageGender", {})
+    return {}
+
+# -----------------------------
+# 4) 실시간 top10 조회
+# -----------------------------
+@app.get("/statistic/realtime-top10")
+def realtime_top10(genre: str = Query(...)):
+    key = f'@"/ranking","?period=D&page=1&pageSize=50&rankingTypes={genre}",'
+    url = f"https://tickets.interpark.com/contents/ranking?genre={genre}"
+    res = get(url)
+
+    if res.status_code != 200:
+        return {"error": "접속 실패"}
+
+    soup = bs(res.text, "html.parser")
+    script_tag = soup.find("script", {"id": "__NEXT_DATA__"})
+    if not script_tag:
+        return {"error": "데이터를 찾을 수 없습니다."}
+
+    json_data = json.loads(script_tag.string)
+    tickets = (
+        json_data.get("props", {})
+        .get("pageProps", {})
+        .get("fallback", {})
+        .get(key, [])
+    )
+
+    top_10 = tickets[:10]
+    results = []
+
+    for v in top_10:
+        statistic = get_statistic(v["goodsCode"], v["placeCode"])
+
+        data = {
+            "id": v["goodsCode"],
+            "title": v["goodsName"],
+            "placeName": v["placeName"],
+            "playStartDate": v["playStartDate"],
+            "playEndDate": v["playEndDate"],
+            "bookingPercent": float(v["bookingPercent"]) if v["bookingPercent"] else 0,
+            "genre": genre,
+            "age10Rate": statistic.get("age10Rate", 0),
+            "age20Rate": statistic.get("age20Rate", 0),
+            "age30Rate": statistic.get("age30Rate", 0),
+            "age40Rate": statistic.get("age40Rate", 0),
+            "age50Rate": statistic.get("age50Rate", 0),
+            "maleRate": statistic.get("maleRate", 0),
+            "femaleRate": statistic.get("femaleRate", 0),
+        }
+        results.append(data)
+
+    valid_booking = [
+        float(t["bookingPercent"]) for t in tickets
+        if t.get("bookingPercent")
+    ]
+    avg_booking = round(sum(valid_booking) / len(valid_booking), 1) if valid_booking else 0
+
+    return {
+        "summary": {
+            "totalCount": len(tickets),
+            "avgBooking": avg_booking,
+        },
+        "top10": results
     }

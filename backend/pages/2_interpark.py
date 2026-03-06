@@ -3,7 +3,7 @@ from requests import get
 import pandas as pd
 import streamlit as st
 import json
-from db import save, saveMany, findAll
+from Streamlit_interpark.backend.pages.db import save, saveMany, findAll
 
 st.set_page_config(
   page_title="interpark 수집",
